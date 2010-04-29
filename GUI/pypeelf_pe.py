@@ -25,24 +25,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-__revision__ = "$Id: pypeelf_pe.py 298 2010-02-26 20:43:24Z reversing $"
+__revision__ = "$Id: pypeelf.py 170 2009-08-24 18:35:05Z reversing $"
 
 import wx
 import pefile
 import sys
 import os
 
-import dos_header
 import directory
 import sections
 import tasks
 import about
-import extra_info
-import flc
 
-from app.common import hex_up, toInt
-from app import compute_hash, pedata
-from app import bae
+from app.common import hex_up_8, hex_up_4
+from app import compute_hash, signaturesdb, pedata
 
 class FileDropTarget(wx.FileDropTarget):
     """This object implements Drop Target functionality for files"""
@@ -61,44 +57,47 @@ class FileDropTarget(wx.FileDropTarget):
 def create(parent):
     return MainPeElfFrame(parent)
 
-[wxID_MAINPEELFFRAME, wxID_MAINPEELFFRAMEABOUT, wxID_MAINPEELFFRAMEBASEOFCODE, 
+[wxID_MAINPEELFFRAME, wxID_MAINPEELFFRAMEABOUT, 
+ wxID_MAINPEELFFRAMEADDITIONALINFO, wxID_MAINPEELFFRAMEBASEOFCODE, 
  wxID_MAINPEELFFRAMEBASEOFDATA, wxID_MAINPEELFFRAMEBROWSE, 
  wxID_MAINPEELFFRAMECHARACTERISTICS, wxID_MAINPEELFFRAMEDIRECTORY, 
- wxID_MAINPEELFFRAMEDOS_HEADER, wxID_MAINPEELFFRAMEENTRYPOINT, 
- wxID_MAINPEELFFRAMEEXIT, wxID_MAINPEELFFRAMEEXTRA_INFO, 
+ wxID_MAINPEELFFRAMEENTRYPOINT, wxID_MAINPEELFFRAMEEXIT, 
  wxID_MAINPEELFFRAMEFALIGNMENT, wxID_MAINPEELFFRAMEFILEINFO, 
- wxID_MAINPEELFFRAMEFILEPATH, wxID_MAINPEELFFRAMEIMAGEBASE, 
- wxID_MAINPEELFFRAMEMACHINETYPE, wxID_MAINPEELFFRAMENUMBEROFSECTIONS, 
- wxID_MAINPEELFFRAMENUMBEROFSYMBOLS, wxID_MAINPEELFFRAMESECALIGNMENT, 
- wxID_MAINPEELFFRAMESECTIONS, wxID_MAINPEELFFRAMESIZEOFHEADERS, 
- wxID_MAINPEELFFRAMESIZEOFIMAGE, wxID_MAINPEELFFRAMESIZEOFOPTIONALHDR, 
- wxID_MAINPEELFFRAMESTATICBOX1, wxID_MAINPEELFFRAMESTATICBOX2, 
- wxID_MAINPEELFFRAMESTATICBOX3, wxID_MAINPEELFFRAMESTATICBOX4, 
- wxID_MAINPEELFFRAMESTATICTEXT1, wxID_MAINPEELFFRAMESTATICTEXT10, 
- wxID_MAINPEELFFRAMESTATICTEXT11, wxID_MAINPEELFFRAMESTATICTEXT12, 
- wxID_MAINPEELFFRAMESTATICTEXT13, wxID_MAINPEELFFRAMESTATICTEXT14, 
- wxID_MAINPEELFFRAMESTATICTEXT15, wxID_MAINPEELFFRAMESTATICTEXT16, 
- wxID_MAINPEELFFRAMESTATICTEXT2, wxID_MAINPEELFFRAMESTATICTEXT3, 
- wxID_MAINPEELFFRAMESTATICTEXT4, wxID_MAINPEELFFRAMESTATICTEXT5, 
- wxID_MAINPEELFFRAMESTATICTEXT6, wxID_MAINPEELFFRAMESTATICTEXT7, 
- wxID_MAINPEELFFRAMESTATICTEXT8, wxID_MAINPEELFFRAMESTATICTEXT9, 
- wxID_MAINPEELFFRAMESUBSYSTEM, wxID_MAINPEELFFRAMESYMBOLTABLE, 
- wxID_MAINPEELFFRAMETASKLIST, wxID_MAINPEELFFRAMETIMADATESTAMP, 
- wxID_MAINPEELFFRAME_BREAK, wxID_MAINPEELFFRAME_FLC, 
- wxID_MAINPEELFFRAME_OPTIONS, wxID_MAINPEELFFRAME_REBUILDER, 
- wxID_MAINPEELFFRAME_SPLIT, wxID_MAINPEELFFRAME_APPLYCHANGES, 
-] = [wx.NewId() for _init_ctrls in range(53)]
+ wxID_MAINPEELFFRAMEFILEPATH, wxID_MAINPEELFFRAMEHASHES, 
+ wxID_MAINPEELFFRAMEIMAGEBASE, wxID_MAINPEELFFRAMEMACHINETYPE, 
+ wxID_MAINPEELFFRAMENUMBEROFSECTIONS, wxID_MAINPEELFFRAMENUMBEROFSYMBOLS, 
+ wxID_MAINPEELFFRAMESECALIGNMENT, wxID_MAINPEELFFRAMESECTIONS, 
+ wxID_MAINPEELFFRAMESIZEOFHEADERS, wxID_MAINPEELFFRAMESIZEOFIMAGE, 
+ wxID_MAINPEELFFRAMESIZEOFOPTIONALHDR, wxID_MAINPEELFFRAMESTATICBOX1, 
+ wxID_MAINPEELFFRAMESTATICBOX2, wxID_MAINPEELFFRAMESTATICBOX3, 
+ wxID_MAINPEELFFRAMESTATICBOX4, wxID_MAINPEELFFRAMESTATICTEXT1, 
+ wxID_MAINPEELFFRAMESTATICTEXT10, wxID_MAINPEELFFRAMESTATICTEXT11, 
+ wxID_MAINPEELFFRAMESTATICTEXT12, wxID_MAINPEELFFRAMESTATICTEXT13, 
+ wxID_MAINPEELFFRAMESTATICTEXT14, wxID_MAINPEELFFRAMESTATICTEXT15, 
+ wxID_MAINPEELFFRAMESTATICTEXT16, wxID_MAINPEELFFRAMESTATICTEXT2, 
+ wxID_MAINPEELFFRAMESTATICTEXT3, wxID_MAINPEELFFRAMESTATICTEXT4, 
+ wxID_MAINPEELFFRAMESTATICTEXT5, wxID_MAINPEELFFRAMESTATICTEXT6, 
+ wxID_MAINPEELFFRAMESTATICTEXT7, wxID_MAINPEELFFRAMESTATICTEXT8, 
+ wxID_MAINPEELFFRAMESTATICTEXT9, wxID_MAINPEELFFRAMESUBSYSTEM, 
+ wxID_MAINPEELFFRAMESYMBOLTABLE, wxID_MAINPEELFFRAMETASKLIST, 
+ wxID_MAINPEELFFRAMETIMADATESTAMP, wxID_MAINPEELFFRAME_BREAK, 
+ wxID_MAINPEELFFRAME_FLC, wxID_MAINPEELFFRAME_OPTIONS, 
+ wxID_MAINPEELFFRAME_REBUILDER, wxID_MAINPEELFFRAME_SPLIT, 
+] = [wx.NewId() for _init_ctrls in range(52)]
 
 class MainPeElfFrame(wx.Frame):
     def _init_ctrls(self, prnt):
         wx.Frame.__init__(self, id=wxID_MAINPEELFFRAME, name='', parent=prnt,
-              pos=wx.Point(446, 202), size=wx.Size(549, 421),
-              style=wx.DEFAULT_FRAME_STYLE^wx.MAXIMIZE_BOX^wx.RESIZE_BORDER, title='[PyPEELF v1.0 - PE32 and PE64 Editor Window]')
+              pos=wx.Point(618, 221), size=wx.Size(541, 498),
+              style=wx.DEFAULT_FRAME_STYLE^wx.MAXIMIZE_BOX^wx.RESIZE_BORDER, title='[PyPEELF v1.0 - PE and PE+ Editor]')
 
+        # we define some characteristics in the window
         self.Centre()
-        self.SetClientSize(wx.Size(533, 380))
+        self.SetClientSize(wx.Size(533, 464))
+
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         
+        # accelerators for shortcuts
         x = [(wx.ACCEL_NORMAL, wx.WXK_ESCAPE, wxID_MAINPEELFFRAME),]
         
         aTable = wx.AcceleratorTable(x)
@@ -118,7 +117,7 @@ class MainPeElfFrame(wx.Frame):
 
         self.staticBox3 = wx.StaticBox(id=wxID_MAINPEELFFRAMESTATICBOX3,
               label='Tables', name='staticBox3', parent=self, pos=wx.Point(216,
-              288), size=wx.Size(208, 88), style=0)
+              288), size=wx.Size(200, 88), style=0)
 
         self.staticBox4 = wx.StaticBox(id=wxID_MAINPEELFFRAMESTATICBOX4,
               label='Options', name='staticBox4', parent=self, pos=wx.Point(432,
@@ -128,24 +127,20 @@ class MainPeElfFrame(wx.Frame):
               name='filepath', parent=self, pos=wx.Point(8, 8),
               size=wx.Size(416, 24), style=0, value='...')
 
-        self.apply = wx.Button(id=wxID_MAINPEELFFRAME_APPLYCHANGES, label='Apply',
-                               name='apply', parent=self, pos=wx.Point(440, 292),
-                               size=wx.Size(75, 23), style=0)
-        
         self.browse = wx.Button(id=wxID_MAINPEELFFRAMEBROWSE, label='Browse',
               name='browse', parent=self, pos=wx.Point(440, 24),
               size=wx.Size(75, 23), style=0)
 
         self.tasklist = wx.Button(id=wxID_MAINPEELFFRAMETASKLIST,
               label='Task list', name='tasklist', parent=self, pos=wx.Point(440,
-              50), size=wx.Size(75, 23), style=0)
+              56), size=wx.Size(75, 23), style=0)
 
         self.about = wx.Button(id=wxID_MAINPEELFFRAMEABOUT, label='About',
-              name='about', parent=self, pos=wx.Point(440, 318),
+              name='about', parent=self, pos=wx.Point(440, 304),
               size=wx.Size(75, 23), style=0)
 
         self.exit = wx.Button(id=wxID_MAINPEELFFRAMEEXIT, label='Exit',
-              name='exit', parent=self, pos=wx.Point(440, 344), size=wx.Size(75,
+              name='exit', parent=self, pos=wx.Point(440, 336), size=wx.Size(75,
               23), style=0)
 
         self.staticText1 = wx.StaticText(id=wxID_MAINPEELFFRAMESTATICTEXT1,
@@ -283,53 +278,47 @@ class MainPeElfFrame(wx.Frame):
         self.directory = wx.Button(id=wxID_MAINPEELFFRAMEDIRECTORY,
               label='Directory', name='directory', parent=self,
               pos=wx.Point(328, 328), size=wx.Size(75, 23), style=0)
+        
+        self.hashes = wx.ListBox(choices=[], id=wxID_MAINPEELFFRAMEHASHES,
+              name='hashes', parent=self, pos=wx.Point(16, 400),
+              size=wx.Size(504, 48), style=0)
+
+        self.additionalinfo = wx.StaticBox(id=wxID_MAINPEELFFRAMEADDITIONALINFO,
+              label='Additional File Information', name='additionalinfo',
+              parent=self, pos=wx.Point(8, 384), size=wx.Size(520, 72),
+              style=0)
 
         self._break = wx.Button(id=wxID_MAINPEELFFRAME_BREAK, label='Break',
-              name='_break', parent=self, pos=wx.Point(440, 76),
+              name='_break', parent=self, pos=wx.Point(440, 88),
               size=wx.Size(75, 23), style=0)
 
         self._rebuilder = wx.Button(id=wxID_MAINPEELFFRAME_REBUILDER,
               label='Rebuilder', name='_rebuilder', parent=self,
-              pos=wx.Point(440, 102), size=wx.Size(75, 23), style=0)
+              pos=wx.Point(440, 120), size=wx.Size(75, 23), style=0)
 
         self._flc = wx.Button(id=wxID_MAINPEELFFRAME_FLC, label='FLC',
-              name='_flc', parent=self, pos=wx.Point(440, 128), size=wx.Size(75,
+              name='_flc', parent=self, pos=wx.Point(440, 152), size=wx.Size(75,
               23), style=0)
 
         self._options = wx.Button(id=wxID_MAINPEELFFRAME_OPTIONS,
               label='Options', name='_options', parent=self, pos=wx.Point(440,
-              232), size=wx.Size(75, 23), style=0)
+              216), size=wx.Size(75, 23), style=0)
 
         self._split = wx.Button(id=wxID_MAINPEELFFRAME_SPLIT, label='Split',
-              name='_split', parent=self, pos=wx.Point(440, 154),
+              name='_split', parent=self, pos=wx.Point(440, 184),
               size=wx.Size(75, 23), style=0)
 
-        self.dos_header = wx.Button(id=wxID_MAINPEELFFRAMEDOS_HEADER,
-              label='DOS Header', name='dos_header', parent=self,
-              pos=wx.Point(440, 180), size=wx.Size(75, 23), style=0)
-
-        self.extra_info = wx.Button(id=wxID_MAINPEELFFRAMEEXTRA_INFO,
-              label='Extra Info', name='extra_info', parent=self,
-              pos=wx.Point(440, 206), size=wx.Size(75, 23), style=0)
-
+        # we bind all the button to the function handler.
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-        
-        self.dos_header.Bind(wx.EVT_BUTTON, self.OnDosHeaderButton, id=wxID_MAINPEELFFRAMEDOS_HEADER)
         self.browse.Bind(wx.EVT_BUTTON, self.OnBrowseButton, id=wxID_MAINPEELFFRAMEBROWSE)
         self.tasklist.Bind(wx.EVT_BUTTON, self.OnTasklistButton, id=wxID_MAINPEELFFRAMETASKLIST)
         self.about.Bind(wx.EVT_BUTTON, self.OnAboutButton, id=wxID_MAINPEELFFRAMEABOUT)
         self.exit.Bind(wx.EVT_BUTTON, self.OnExitButton, id=wxID_MAINPEELFFRAMEEXIT)
         self.sections.Bind(wx.EVT_BUTTON, self.OnSectionsButton, id=wxID_MAINPEELFFRAMESECTIONS)
         self.directory.Bind(wx.EVT_BUTTON, self.OnDirectoryButton, id=wxID_MAINPEELFFRAMEDIRECTORY)
-        self.extra_info.Bind(wx.EVT_BUTTON, self.OnExtraInfoButton, id=wxID_MAINPEELFFRAMEEXTRA_INFO)
-        self._flc.Bind(wx.EVT_BUTTON, self.OnFLCButton, id=wxID_MAINPEELFFRAME_FLC)
-        self._break.Bind(wx.EVT_BUTTON, self.OnBreakAndEnterButton, id=wxID_MAINPEELFFRAME_BREAK)
-        self.apply.Bind(wx.EVT_BUTTON, self.OnApplyChangesButton, id=wxID_MAINPEELFFRAME_APPLYCHANGES)
         
         self.sections.Enable(False)
         self.directory.Enable(False)
-        self.extra_info.Enable(False)
-        self.dos_header.Enable(False)
         
     def __init__(self, parent):
         self._init_ctrls(parent)
@@ -340,56 +329,16 @@ class MainPeElfFrame(wx.Frame):
         # Link the Drop Target Object to the Text Control
         self.SetDropTarget(fdt)
 
-        self._loadedFile = None
+        self.filename = None
         self.mainDlg = parent
+        #self.peInstance = None
+        self.__packer = False
         self.isIA64 = False
         self.isx86 = False
     
     def Restore(self):
         self.Show()
         self.SetFocus()
-    
-    def OnApplyChangesButton(self, event):
-        oh = self.peInstance.OPTIONAL_HEADER
-        fh = self.peInstance.FILE_HEADER
-    
-        oh.AddressOfEntryPoint = toInt(self.entrypoint.GetValue())
-        oh.ImageBase = toInt(self.imagebase.GetValue())
-        oh.BaseOfCode = toInt(self.baseofcode.GetValue())
-        
-        if self.isx86:    
-            oh.BaseOfData = toInt(self.baseofdata.GetValue())
-        
-        oh.SizeOfImage = toInt(self.sizeofimage.GetValue())
-        oh.SizeOfHeaders = toInt(self.sizeofheaders.GetValue())
-        oh.SectionAlignment = toInt(self.secalignment.GetValue())
-        oh.FileAlignment = toInt(self.falignment.GetValue())
-        oh.Subsystem = toInt(self.subsystem.GetValue())
-        fh.Machine = toInt(self.machinetype.GetValue())
-        fh.NumberOfSections = toInt(self.numberofsections.GetValue())
-        fh.TimeDateStamp = toInt(self.timadatestamp.GetValue())
-        fh.PointerToSymbolTable = toInt(self.symboltable.GetValue())
-        fh.NumberOfSymbols = toInt(self.numberofsymbols.GetValue())
-        fh.SizeOfOptionalHeader = toInt(self.sizeofheaders.GetValue())
-        fh.Characteristics = toInt(self.characteristics.GetValue())
-        
-        try:
-            self.peInstance.write(self.get_loaded_file())
-        except IOError, e:
-            raise str(e)
-
-    def OnBreakAndEnterButton(self, event):
-        bae.BreakAtEP()
-        
-    def OnFLCButton(self, event):
-        flcDlg = flc.create(self)
-        flcDlg.Show()
-        self.Hide()
-        
-    def OnExtraInfoButton(self, event):
-        extrainfo = extra_info.create(self)
-        extrainfo.Show()
-        self.Hide()
         
     def OnKeyDown(self, event):
         keycode = event.GetKeyCode()
@@ -402,66 +351,105 @@ class MainPeElfFrame(wx.Frame):
         event.Skip()
 
     def OnExitButton(self, event):
+        # just close the app.
         self.Close()
+
+    #def SetFilePath(self, path):
+    #    self.filepath = path
         
     def _load_file(self, filename):
-        self._loadedFile = filename
-        try:
-            self.peInstance = pefile.PE(filename, fast_load = True)
-        except pefile.PEFormatError, e:
-            wx.MessageBox(e.value, "Pe Format Error", wx.ICON_ERROR)
-            self.filepath.SetValue("...")
-            return False
-
+        """Load the given file into PyPEELF"""
         self.filepath.SetValue(str(filename))
-        
+        ## we load the file using pefile from ero carrera!.
+        #try:
+        #    self.peInstance = pefile.PE(filename)
+        #except pefile.PEFormatError, e:
+        #    wx.MessageBox(e.value, "Pe Format Error", wx.ICON_ERROR)
+        #    self.filepath.SetValue("...")
+        #    return
+        #
+        line = "-" * 100
+        self.hashes.Append("PyPEELF v1.0 - Multi-Platform Binary Editor")
+        self.hashes.Append(line)
+        self.hashes.Append("Gathering file information...")
+        self.hashes.Append(line)
         if self.peInstance.PE_TYPE == 0x10b:
+            self.hashes.Append("Microsoft PE-Executable - 32 bits (x86)")
             self.isx86 = True
-        elif self.peInstance.PE_TYPE == 0x20b:
-            self.isIA64 = True
+        else:
+            if self.peInstance.PE_TYPE == 0x20b:
+                self.hashes.Append("Microsoft PE-Executable - 64 bits (IA64)")
+                self.isIA64 = True
 
         self.printPeHeaderData(pedata.getPEHeaderData(self.peInstance))
+        
+        if self.__packer:
+            self.hashes.Append("Compiler/Packer: %s" % signaturesdb.getSignature(self.peInstance))
+
+        self.hashes.Append("Filename: %s" % os.path.basename(filename))
+        self.hashes.Append("File Size: %d bytes" % os.stat(filename)[6])
+        self.hashes.Append(line)
+        try:
+            fd = open(filename, "rb")
+            fz = os.stat(filename)[6]
+            self.hashes.Append("File Hashes")
+            self.hashes.Append(line)
+            # here, we calculate the file MD5, SHA-1, and CRC-32 hashes
+            self.hashes.Append("CRC-32: %s" % hex(abs(compute_hash.computeCRC32Hash(fd, fz))).replace("0x", "").upper())
+            self.hashes.Append("MD5: %s" % compute_hash.computeMd5Hash(fd).upper())
+            self.hashes.Append("SHA-1: %s" % compute_hash.computeSha512Hash(fd).upper())
+            fd.close()
+        except IOError:
+            wx.MessageBox("Error: Unable to open the file %s in read mode" % filename)
 
         self.sections.Enable(True)
         self.directory.Enable(True)
-        self.extra_info.Enable(True)
-        self.dos_header.Enable(True)
-        
-    def OnDosHeaderButton(self, event):
-        doshdr_dlg = dos_header.create(self)
-        doshdr_dlg.Show()
-        self.Hide()
-        
+
+
     def OnBrowseButton(self, event):
+        # for now, we only accept .exe and .dll file types.
         filters = 'Executable Files (*.exe)|*.exe|Dinamyc Libraries (*dll)|*.dll|All files (*.*)|*.*'
 
+        # open file dialog.
         dialog = wx.FileDialog ( None, message = 'Select file....', wildcard = filters, style = wx.OPEN | wx.MULTIPLE )
 
+        # if the user click on OK...
         if dialog.ShowModal() == wx.ID_OK:
+            # we get the file path and print it.
             file_path = dialog.GetPaths()[0]
             
-            self._load_file(file_path)
+            #self.filepath.SetValue(str(file_path))
+            # we load the file using pefile from ero carrera!.
+            try:
+                self.peInstance = pefile.PE(file_path)
+                self._load_file(file_path)
+            except pefile.PEFormatError, e:
+                wx.MessageBox(e.value, "Pe Format Error", wx.ICON_ERROR)
+                self.filepath.SetValue("...")
+                return
+
+            #self._load_file(file_path)
 
     def printPeHeaderData(self, pdata):
-        self.entrypoint.SetValue(hex_up(pdata["EntryPoint"]))
-        self.imagebase.SetValue(hex_up(pdata["ImageBase"]))
-        self.baseofcode.SetValue(hex_up(pdata["BaseOfCode"]))
+        self.entrypoint.SetValue(hex_up_8(pdata["EntryPoint"]))
+        self.imagebase.SetValue(hex_up_8(pdata["ImageBase"]))
+        self.baseofcode.SetValue(hex_up_8(pdata["BaseOfCode"]))
         
         if not self.isIA64:
-            self.baseofdata.SetValue(hex_up(pdata["BaseOfData"]))
+            self.baseofdata.SetValue(hex_up_8(pdata["BaseOfData"]))
             
-        self.sizeofimage.SetValue(hex_up(pdata["SizeOfImage"]))
-        self.sizeofheaders.SetValue(hex_up(pdata["SizeOfHeaders"]))
-        self.secalignment.SetValue(hex_up(pdata["SectionAlignment"]))
-        self.falignment.SetValue(hex_up(pdata["FileAlignment"]))
-        self.subsystem.SetValue(hex_up(pdata["Subsystem"], 4))
-        self.machinetype.SetValue(hex_up(pdata["MachineType"], 4))
-        self.numberofsections.SetValue(hex_up(pdata["NumberOfSections"], 4))
-        self.timadatestamp.SetValue(hex_up(pdata["TimeDateStamp"]))
-        self.symboltable.SetValue(hex_up(pdata["PointerToSymbolTable"]))
-        self.numberofsymbols.SetValue(hex_up(pdata["NumberOfSymbols"]))
-        self.sizeofoptionalhdr.SetValue(hex_up(pdata["SizeOfOptionalHeader"], 4))
-        self.characteristics.SetValue(hex_up(pdata["Characteristics"], 4))
+        self.sizeofimage.SetValue(hex_up_8(pdata["SizeOfImage"]))
+        self.sizeofheaders.SetValue(hex_up_8(pdata["SizeOfHeaders"]))
+        self.secalignment.SetValue(hex_up_8(pdata["SectionAlignment"]))
+        self.falignment.SetValue(hex_up_8(pdata["FileAlignment"]))
+        self.subsystem.SetValue(hex_up_4(pdata["Subsystem"]))
+        self.machinetype.SetValue(hex_up_4(pdata["MachineType"]))
+        self.numberofsections.SetValue(hex_up_4(pdata["NumberOfSections"]))
+        self.timadatestamp.SetValue(hex_up_8(pdata["TimeDateStamp"]))
+        self.symboltable.SetValue(hex_up_8(pdata["PointerToSymbolTable"]))
+        self.numberofsymbols.SetValue(hex_up_8(pdata["NumberOfSymbols"]))
+        self.sizeofoptionalhdr.SetValue(hex_up_4(pdata["SizeOfOptionalHeader"]))
+        self.characteristics.SetValue(hex_up_4(pdata["Characteristics"]))
     
     def OnDirectoryButton(self, event):
         tablesDialog = directory.create(self)
@@ -483,13 +471,7 @@ class MainPeElfFrame(wx.Frame):
     def OnClose(self, event):
         self.mainDlg.Show()
         self.Destroy()
-    
-    def get_loaded_file(self):
-        return self._loadedFile
-
-    def get_pe_instance(self):
-        return self.peInstance
-    
+        
 if __name__ == '__main__':
     app = wx.PySimpleApp()
     frame = create(None)

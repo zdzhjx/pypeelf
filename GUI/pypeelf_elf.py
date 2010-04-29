@@ -1,9 +1,6 @@
-#!/usr/bin/env python
-
-#Boa:Frame:Sections
 #
-#   Description: 
-#       INI File Class Implementation
+#   Description:
+#       Main ELF Viewer/Editor Window
 #   Author:
 #       +NCR/CRC! [ReVeRsEr] (nriva)
 #
@@ -27,24 +24,25 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-__revision__ = "$Id: ini.py 298 2010-02-26 20:43:24Z reversing $"
+__revision__ = "$Id: pypeelf_elf.py 167 2009-08-22 21:49:33Z reversing $"
 
-# http://code.activestate.com/recipes/464408/
-class Ini(object):
-    def __init__(self):
-        self.ini = []
+import wx
 
-    def add_section(self, section):
-        self.ini.append("[%s]" % section)
+def create(parent):
+    return resource_viewer(parent)
 
-    def add_key(self, key, value):
-        self.ini.append("%s=%s" % (key, value))
+[wxID_RESOURCE_VIEWER] = [wx.NewId() for _init_ctrls in range(1)]
 
-    def add_comment(self, comment):
-        self.ini.append(";%s" % comment)
+class resource_viewer(wx.Frame):
+    def _init_ctrls(self, prnt):
+        wx.Frame.__init__(self, id=wxID_RESOURCE_VIEWER, name='elf_dlg',
+              parent=prnt, pos=wx.Point(438, 298), size=wx.Size(400, 250),
+              style=wx.DEFAULT_FRAME_STYLE, title='[PyPEELF v1.0 - ELF Editor]')
+        
+        self.Centre()
+        self.SetClientSize(wx.Size(384, 214))
 
-    def add_verb(self, verb):
-        self.ini.append(verb)
+    def __init__(self, parent):
+        self._init_ctrls(parent)
 
-    def show(self):
-        return "\n".join(self.ini)
+

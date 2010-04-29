@@ -1,7 +1,9 @@
-#Boa:Frame:resource_viewer
+#!/usr/bin/env python
+
+#Boa:App:PyPeElf
 #
 #   Description:
-#       Resource Viewer/Editor
+#       PyPEELF application
 #   Author:
 #       +NCR/CRC! [ReVeRsEr] (nriva)
 #
@@ -25,24 +27,25 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-__revision__ = "$Id: resources.py 167 2009-08-22 21:49:33Z reversing $"
+__revision__ = "$Id: PyPeElfMain.py 46 2009-07-13 00:34:13Z reversing $"
 
 import wx
 
-def create(parent):
-    return resource_viewer(parent)
+import pypeelf_maindlg
+import pypeelf_pe
 
-[wxID_RESOURCE_VIEWER] = [wx.NewId() for _init_ctrls in range(1)]
+modules ={u'pypeelf_maindlg': [1, 'Main frame of Application', u'pypeelf_maindlg.py']}
 
-class resource_viewer(wx.Frame):
-    def _init_ctrls(self, prnt):
-        # generated method, don't edit
-        wx.Frame.__init__(self, id=wxID_RESOURCE_VIEWER, name='resource_viewer',
-              parent=prnt, pos=wx.Point(438, 298), size=wx.Size(400, 250),
-              style=wx.DEFAULT_FRAME_STYLE, title='Resource Viewer')
-        
-        self.Centre()
-        self.SetClientSize(wx.Size(384, 214))
+class PyPeElfApp(wx.App):
+    def OnInit(self):
+        self.main = pypeelf_maindlg.create(None)
+        self.main.Show()
+        self.SetTopWindow(self.main)
+        return True
 
-    def __init__(self, parent):
-        self._init_ctrls(parent)
+def main():
+    application = PyPeElfApp(0)
+    application.MainLoop()
+
+if __name__ == '__main__':
+    main()
